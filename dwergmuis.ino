@@ -12,8 +12,8 @@ void setup() {
 
   pinMode(11, INPUT_PULLUP);
   pinMode(12, INPUT_PULLUP);
-  attachInterrupt(11, left_press, RISING);
-  attachInterrupt(12, left_release, RISING);
+  attachInterrupt(11, left_press, FALLING);
+  attachInterrupt(12, left_release, FALLING);
   
   // rotary encoder
   pinMode(16, INPUT_PULLUP);
