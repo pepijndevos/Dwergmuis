@@ -96,9 +96,9 @@ void setup() {
   SPI.begin();
   SPI.setDataMode(SPI_MODE3);
   SPI.setBitOrder(MSBFIRST);
-  SPI.setClockDivider(64);
+  SPI.setClockDivider(1);
 
-  perform_startup();  
+  perform_startup();
   delay(100);
 }
 
@@ -113,19 +113,9 @@ void loop() {
   }
   if (mouse_has_data) {
     mouse_has_data = false;
-    adns_com_begin();
-  
-    byte XLSB = adns_read_reg(REG_Delta_X_L);
-    byte XMSB = adns_read_reg(REG_Delta_X_H);
-    byte YLSB = adns_read_reg(REG_Delta_Y_L);
-    byte YMSB = adns_read_reg(REG_Delta_Y_H);
-  
-    int dx = (XMSB << 8) | XLSB;
-    int dy = (YMSB << 8) | YLSB;
-
-    adns_com_end();
-
-    Mouse.move(dx,dy);
+    int xy[2];
+    adns_burst_motion(xy);
+    Mouse.move(xy[0],xy[1]);
   }
   //Serial.println(mouse_has_data);
   //Serial.println(adns_read_reg(REG_Motion), BIN);
@@ -134,8 +124,7 @@ void loop() {
   //delay(100);
 }
 
-void read_encoder()
-{
+void read_encoder() {
   int8_t enc_states[] = {0,-1,1,0,1,0,0,-1,-1,0,0,1,0,1,-1,0};
   static uint8_t old_AB = 0;
   uint8_t dir;
@@ -161,7 +150,30 @@ void pointer_moved() {
   mouse_has_data = true;
 }
 
-byte adns_read_reg(byte reg_addr){
+void adns_burst_motion(int *xy) {
+  adns_com_begin();
+  
+  // send adress of the register, with MSBit = 0 to indicate it's a read
+  SPI.transfer(REG_Motion_Burst & 0x7f );
+  delayMicroseconds(100); // tSRAD
+  // read data
+  SPI.transfer(0); // motion
+  SPI.transfer(0); // observation
+  
+  byte XLSB = SPI.transfer(0);;
+  byte XMSB = SPI.transfer(0);;
+  byte YLSB = SPI.transfer(0);;
+  byte YMSB = SPI.transfer(0);;
+  
+  xy[0] = (XMSB << 8) | XLSB;
+  xy[1] = (YMSB << 8) | YLSB;
+  
+  delayMicroseconds(1); // tSCLK-NCS for read operation is 120ns
+  adns_com_end();
+  delayMicroseconds(19); //  tSRW/tSRR (=20us) minus tSCLK-NCS
+}
+
+byte adns_read_reg(byte reg_addr) {
   adns_com_begin();
   
   // send adress of the register, with MSBit = 0 to indicate it's a read
@@ -177,7 +189,7 @@ byte adns_read_reg(byte reg_addr){
   return data;
 }
 
-void adns_write_reg(byte reg_addr, byte data){
+void adns_write_reg(byte reg_addr, byte data) {
   adns_com_begin();
   
   //send adress of the register, with MSBit = 1 to indicate it's a write
@@ -190,7 +202,7 @@ void adns_write_reg(byte reg_addr, byte data){
   delayMicroseconds(100); // tSWW/tSWR (=120us) minus tSCLK-NCS. Could be shortened, but is looks like a safe lower bound 
 }
 
-void adns_upload_firmware(){
+void adns_upload_firmware() {
   // send the firmware to the chip, cf p.18 of the datasheet
   Serial.println("Uploading firmware...");
   // set the configuration_IV register in 3k firmware mode
@@ -221,7 +233,7 @@ void adns_upload_firmware(){
 }
 
 
-void perform_startup(void){
+void perform_startup(void) {
   adns_com_end(); // ensure that the serial port is reset
   adns_com_begin(); // ensure that the serial port is reset
   adns_com_end(); // ensure that the serial port is reset
