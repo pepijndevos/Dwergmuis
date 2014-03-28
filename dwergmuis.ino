@@ -109,7 +109,7 @@ void loop() {
     left_state = (enum button_state)((int)left_state | 1); // ACK
      Mouse.set_buttons(((left_state & 2) >> 1), 0, 0);
   }
-  if (mouse_has_data) {
+  if (mouse_has_data || digitalRead(mot) == LOW) { //sometimes we miss the edge
     mouse_has_data = false;
     int xy[2];
     adns_burst_motion(xy);
