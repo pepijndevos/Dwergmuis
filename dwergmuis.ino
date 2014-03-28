@@ -1,4 +1,4 @@
-#include <SPI.h>
+#include <spi4teensy3.h>
 #include <avr/pgmspace.h>
 
 // Registers
@@ -93,10 +93,8 @@ void setup() {
   pinMode(mot, INPUT);
   attachInterrupt(mot, pointer_moved, FALLING);
   
-  SPI.begin();
-  SPI.setDataMode(SPI_MODE3);
-  SPI.setBitOrder(MSBFIRST);
-  SPI.setClockDivider(24); // 48MHz / 24 = 2MHz = fSCLK
+  // 48MHz / 24 = 2MHz = fSCLK
+  spi4teensy3::init(5,1,1);
 
   perform_startup();
   delay(100);
@@ -151,22 +149,19 @@ void pointer_moved() {
 }
 
 void adns_burst_motion(int *xy) {
+  byte data[6];
+  
   adns_com_begin();
   
   // send adress of the register, with MSBit = 0 to indicate it's a read
-  SPI.transfer(REG_Motion_Burst & 0x7f );
+  spi4teensy3::send(REG_Motion_Burst & 0x7f );
   delayMicroseconds(100); // tSRAD
   // read data
-  SPI.transfer(0); // motion
-  SPI.transfer(0); // observation
+  spi4teensy3::receive(data, 6);
+
   
-  byte XLSB = SPI.transfer(0);;
-  byte XMSB = SPI.transfer(0);;
-  byte YLSB = SPI.transfer(0);;
-  byte YMSB = SPI.transfer(0);;
-  
-  xy[0] = (XMSB << 8) | XLSB;
-  xy[1] = (YMSB << 8) | YLSB;
+  xy[0] = (data[3] << 8) | data[2];
+  xy[1] = (data[5] << 8) | data[4];
   
   delayMicroseconds(1); // tSCLK-NCS for read operation is 120ns
   adns_com_end();
@@ -177,10 +172,10 @@ byte adns_read_reg(byte reg_addr) {
   adns_com_begin();
   
   // send adress of the register, with MSBit = 0 to indicate it's a read
-  SPI.transfer(reg_addr & 0x7f );
+  spi4teensy3::send(reg_addr & 0x7f );
   delayMicroseconds(100); // tSRAD
   // read data
-  byte data = SPI.transfer(0);
+  byte data = spi4teensy3::receive();
   
   delayMicroseconds(1); // tSCLK-NCS for read operation is 120ns
   adns_com_end();
@@ -193,9 +188,9 @@ void adns_write_reg(byte reg_addr, byte data) {
   adns_com_begin();
   
   //send adress of the register, with MSBit = 1 to indicate it's a write
-  SPI.transfer(reg_addr | 0x80 );
+  spi4teensy3::send(reg_addr | 0x80 );
   //sent data
-  SPI.transfer(data);
+  spi4teensy3::send(data);
   
   delayMicroseconds(20); // tSCLK-NCS for write operation
   adns_com_end();
@@ -219,14 +214,14 @@ void adns_upload_firmware() {
   
   // write the SROM file (=firmware data) 
   adns_com_begin();
-  SPI.transfer(REG_SROM_Load_Burst | 0x80); // write burst destination adress
+  spi4teensy3::send(REG_SROM_Load_Burst | 0x80); // write burst destination adress
   delayMicroseconds(15);
   
   // send all bytes of the firmware
   unsigned char c;
   for(int i = 0; i < firmware_length; i++){ 
     c = (unsigned char)pgm_read_byte(firmware_data + i);
-    SPI.transfer(c);
+    spi4teensy3::send(c);
     delayMicroseconds(15);
   }
   adns_com_end();
