@@ -96,7 +96,7 @@ void setup() {
   SPI.begin();
   SPI.setDataMode(SPI_MODE3);
   SPI.setBitOrder(MSBFIRST);
-  SPI.setClockDivider(1);
+  SPI.setClockDivider(24); // 48MHz / 24 = 2MHz = fSCLK
 
   perform_startup();
   delay(100);
