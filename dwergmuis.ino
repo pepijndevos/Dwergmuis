@@ -1,3 +1,4 @@
+#include <EEPROM.h>
 #include <spi4teensy3.h>
 #include <avr/pgmspace.h>
 
@@ -107,6 +108,7 @@ void setup() {
 
   perform_startup();
   delay(100);
+  configure();
 }
 
 void loop() {
@@ -125,6 +127,21 @@ void loop() {
     right_state = (enum button_state)((int)right_state | 1); // ACK
     Mouse.set_buttons(((left_state & 2) >> 1), 0, ((right_state & 2) >> 1));
   }
+  if (Serial.available() >= 3) {
+    byte regptr = Serial.read();
+    byte value = Serial.read();
+    byte check = Serial.read();
+    if (regptr ^ value == check) {
+      EEPROM.write(regptr, value);
+      configure();
+    } else {
+      usb_serial_flush_input(); // Teensy specific
+    }
+  }
+}
+
+void configure() {
+    adns_write_reg(REG_Configuration_I, EEPROM.read(REG_Configuration_I));
 }
 
 void read_encoder() {
