@@ -64,14 +64,17 @@ extern prog_uchar firmware_data[];
 volatile boolean mouse_has_data = true;
 volatile int scroll_steps = 0;
 volatile enum button_state left_state = BUTTON_ACK_RELEASED;
+volatile enum button_state right_state = BUTTON_ACK_RELEASED;
 
 const int ncs = 8;
 const int mot = 9;
-const int left_pos = 0;
-const int left_neg = 1;
+const int left_pos = 1;
+const int left_neg = 0;
+const int right_pos = 15;
+const int right_neg = 14;
 // alligned to PORT
 const int scroll_phase = 16;
-const int scroll_couter = 17;
+const int scroll_counter = 17;
 
 void setup() {
   Serial.begin(9600);
@@ -82,11 +85,17 @@ void setup() {
   attachInterrupt(left_pos, left_press, FALLING);
   attachInterrupt(left_neg, left_release, FALLING);
   
+  // right button
+  pinMode(right_pos, INPUT_PULLUP);
+  pinMode(right_neg, INPUT_PULLUP);
+  attachInterrupt(right_pos, right_press, FALLING);
+  attachInterrupt(right_neg, right_release, FALLING);
+  
   // rotary encoder
   pinMode(scroll_phase, INPUT_PULLUP);
-  pinMode(scroll_couter, INPUT_PULLUP);
+  pinMode(scroll_counter, INPUT_PULLUP);
   attachInterrupt(scroll_phase, read_encoder, CHANGE);
-  attachInterrupt(scroll_couter, read_encoder, CHANGE);
+  attachInterrupt(scroll_counter, read_encoder, CHANGE);
   
   // optical sensor
   pinMode (ncs, OUTPUT);
@@ -101,25 +110,21 @@ void setup() {
 }
 
 void loop() {
-  if (scroll_steps) {
-    Mouse.scroll(scroll_steps);
-    scroll_steps = 0;
-  }
-  if (!(left_state & 1)) { // not ACK
-    left_state = (enum button_state)((int)left_state | 1); // ACK
-     Mouse.set_buttons(((left_state & 2) >> 1), 0, 0);
-  }
   if (mouse_has_data) {
     mouse_has_data = false;
     int xy[2];
     adns_burst_motion(xy);
     Mouse.move(xy[0],xy[1]);
   }
-  //Serial.println(mouse_has_data);
-  //Serial.println(adns_read_reg(REG_Motion), BIN);
-  //Serial.println(digitalRead(mot));
-  //Serial.println("--------");
-  //delay(100);
+  if (scroll_steps) {
+    Mouse.scroll(scroll_steps);
+    scroll_steps = 0;
+  }
+  if (!(left_state & 1) || !(right_state & 1)) { // not ACK
+    left_state = (enum button_state)((int)left_state | 1); // ACK
+    right_state = (enum button_state)((int)right_state | 1); // ACK
+    Mouse.set_buttons(((left_state & 2) >> 1), 0, ((right_state & 2) >> 1));
+  }
 }
 
 void read_encoder() {
@@ -127,20 +132,36 @@ void read_encoder() {
   static uint8_t old_AB = 0;
   uint8_t dir;
 
-  old_AB <<= 2;                   //remember previous state
-  old_AB |= ( GPIOB_PDIR & 0x03 );  //add current state
+  old_AB <<= 2; //remember previous state
+  old_AB |= ( GPIOB_PDIR & 0x03 ); //add current state
   scroll_steps += ( enc_states[( old_AB & 0x0f )]);
 }
 
 void left_press() {
   if (left_state == BUTTON_ACK_RELEASED) {
+    //Serial.println("left press");
     left_state = BUTTON_PRESSED;
   }
 }
 
 void left_release() {
   if (left_state == BUTTON_ACK_PRESSED) {
+    //Serial.println("left release");
     left_state = BUTTON_RELEASED;
+  }
+}
+
+void right_press() {
+  if (right_state == BUTTON_ACK_RELEASED) {
+    //Serial.println("right press");
+    right_state = BUTTON_PRESSED;
+  }
+}
+
+void right_release() {
+  if (right_state == BUTTON_ACK_PRESSED) {
+    //Serial.println("pright release");
+    right_state = BUTTON_RELEASED;
   }
 }
 
