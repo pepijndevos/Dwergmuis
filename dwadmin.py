@@ -15,7 +15,7 @@ def set_reg(reg, val):
     s.write(data)
     s.flush()
 
-if hasattr(args, 'resolution'):
+if args.resolution:
     set_reg(0x0f, args.resolution)
 
 s.close()
